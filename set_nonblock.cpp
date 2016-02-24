@@ -17,6 +17,6 @@ int set_nonblock(int fd){
     return fcntl(fd, F_SETFL, flags|O_NONBLOCK);
 #else
     flags = 1;
-    return ioctl(fd, FIONBIO, &flags);
+    return ioctl(fd, FIOBIO, &flags);
 #endif
 }

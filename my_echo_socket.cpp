@@ -20,6 +20,7 @@
 #include <unistd.h>
 #include <string.h>
 #include "set_nonblock.h"
+#include <pthread.h>
 
 //#include <sys/stat.h>
 //#include <stdio.h>
@@ -33,24 +34,58 @@
 
 using namespace std;
 
+static const char* not_found = "HTTP/1.0 404 NOT FOUND\r\nContent-Type: text/html\r\n\r\n";
+static const char* templ = "HTTP/1.0 200 OK\r\n"
+		           "Content-length: %d\r\n"
+		       	   "Content-Type: text/html\r\n"
+		       	   "\r\n"
+		       	   "<html><body><h1>Hello Я дятел 12345</h1></body></html>";
+void *process(void *arg);
+
+
+void *process(void *arg){
+    
+    int SlaveSocket = * (int *) arg;
+    char buff[512];
+
+//    bzero(buff, sizeof(buff));
+//    strncpy(buff, "You have only 5 sec\n\n", sizeof(buff));
+//    ssize_t snd = send(SlaveSocket, buff, sizeof(buff), MSG_NOSIGNAL);
+
+    bzero(buff, sizeof(buff));
+    ssize_t rcv = recv(SlaveSocket, buff, sizeof(buff), MSG_NOSIGNAL);
+    if(-1 != rcv){
+//        GET / HTTP/1.1
+//        GET /index.html HTTP/1.1
+        cout << buff << endl;
+        strncpy(buff, not_found, sizeof(buff));
+        ssize_t snd = send(SlaveSocket, buff, sizeof(buff), MSG_NOSIGNAL);
+    }
+    else {
+        strncpy(buff, "\n\ngood by\n", sizeof(buff));
+        ssize_t snd = send(SlaveSocket, buff, sizeof(buff), MSG_NOSIGNAL);
+    }
+    shutdown(SlaveSocket, SHUT_RDWR);
+    close(SlaveSocket);
+    
+    pthread_exit(0);
+}
+
+
 /*
  * 
  */
 int main(int argc, char** argv) {
     
-    int s, s_1, b, optval;
-    char buff[256];
+    int MasterSocket, SlaveSocket, b, optval;
+//    char buff[256];
+    pthread_t thread;
+
     struct sockaddr_in sa;
-    std::cout << "AF_INET:" << AF_INET <<  std::endl;
-    std::cout << "SOCK_STREAM:" << SOCK_STREAM <<  std::endl;
-//    std::cout << "SOCK_STREAM:" << IP <<  std::endl;
-    
-    struct timeval tv;
-    tv.tv_sec = 5;
-    tv.tv_usec = 0;
-    
     sa.sin_family = AF_INET;
     sa.sin_port = htons(12345);
+    
+    
 //    sa.sin_addr.s_addr = htonl(INADDR_LOOPBACK);    
 //    sa.sin_addr.s_addr = htonl(INADDR_ANY); // all interfaces
     int err = inet_pton(AF_INET, "127.0.0.1", &(sa.sin_addr));
@@ -58,64 +93,55 @@ int main(int argc, char** argv) {
         perror("inet_pton");
         exit(EXIT_FAILURE);
     }
-
     
-    int snb = set_nonblock(s);
-    cout << "Set NON block:" << snb << endl; 
+    set_nonblock(MasterSocket);
     
-    s = socket(AF_INET, SOCK_STREAM, 0);
-    if (s < 0){
+    MasterSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP); // IPP
+    if (MasterSocket < 0){
         perror("socket");
         exit(EXIT_FAILURE);
     }
-    err = setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
+    err = setsockopt(MasterSocket, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
     if (-1 == err){
         perror("SO_REUSEADDR");
         exit(EXIT_FAILURE);
     }
     
-    b = bind(s, (struct sockaddr *) &sa, sizeof(sa));
+    b = bind(MasterSocket, (struct sockaddr *) &sa, sizeof(sa));
     if(b == -1){
         perror("bind");
         exit(EXIT_FAILURE);
     }
 
-    std::cout << s << '\n';
-    
-    err = listen(s, SOMAXCONN);
+    err = listen(MasterSocket, SOMAXCONN);
     if (err == -1){
         perror("listen");
         exit(EXIT_FAILURE);
     }
     
     while(1){
+//        struct timeval tv;
+//        tv.tv_sec = 5;
+//        tv.tv_usec = 0;
         
-        s_1 = accept(s, NULL, NULL);
-        setsockopt(s_1, SOL_SOCKET, SO_SNDTIMEO, (char *) &tv, sizeof(tv));
-        setsockopt(s_1, SOL_SOCKET, SO_RCVTIMEO, (char *) &tv, sizeof(tv));
-        if(s_1 == -1){
+        SlaveSocket = accept(MasterSocket, NULL, NULL);
+        if(SlaveSocket == -1){
             perror("accept error");
             exit(EXIT_FAILURE);
-        }
         
-        bzero(buff, sizeof(buff));
-        strcpy(buff, "You have only 5 sec\n\n");
-        ssize_t snd = send(s_1, buff, sizeof(buff), MSG_NOSIGNAL);
+//        setsockopt(SlaveSocket, SOL_SOCKET, SO_SNDTIMEO, (char *) &tv, sizeof(tv));
+//        setsockopt(SlaveSocket, SOL_SOCKET, SO_RCVTIMEO, (char *) &tv, sizeof(tv));
         
-        bzero(buff, sizeof(buff));
-        ssize_t rcv = recv(s_1, buff, sizeof(buff), MSG_NOSIGNAL);
-        if(-1 != rcv){
-            ssize_t snd = send(s_1, buff, rcv, MSG_NOSIGNAL);
         } 
         else {    
-            strcpy(buff, "\n\ngood by\n");
-            ssize_t snd = send(s_1, buff, sizeof(buff), MSG_NOSIGNAL);
+//            set_nonblock(SlaveSocket);
+            pthread_create(&thread, 0, process, &SlaveSocket);
+            pthread_detach(thread);
         }
-        shutdown(s_1, SHUT_RDWR);
-        close(s_1);
+    
     }
-    shutdown(s, SHUT_RDWR);
-    close(s);
+    shutdown(MasterSocket, SHUT_RDWR);
+    close(MasterSocket);
     
     return 0;
 }
