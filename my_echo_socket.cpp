@@ -37,7 +37,7 @@ using namespace std;
 static const char* not_found = "HTTP/1.0 404 NOT FOUND\r\nContent-Type: text/html\r\n\r\n";
 static const char* templ = "HTTP/1.0 200 OK\r\n"
 		           "Content-length: %d\r\n"
-		       	   "Content-Type: text/html\r\n"
+		       	   "Content-Type: text/html; charset=utf8\r\n"
 		       	   "\r\n"
 		       	   "<html><body><h1>Hello 12345</h1></body></html>";
 void *process(void *arg);
@@ -58,7 +58,7 @@ void *process(void *arg){
 //        GET / HTTP/1.1
 //        GET /index.html HTTP/1.1
         cout << buff << endl;
-        strncpy(buff, not_found, sizeof(buff));
+        strncpy(buff, templ, sizeof(buff));
         ssize_t snd = send(SlaveSocket, buff, sizeof(buff), MSG_NOSIGNAL);
     }
     else {
