@@ -36,12 +36,20 @@ using namespace std;
 
 static const char* not_found = "HTTP/1.0 404 NOT FOUND\r\nContent-Type: text/html\r\n\r\n";
 static const char* templ = "HTTP/1.0 200 OK\r\n"
-		           "Content-length: %d\r\n"
+		           "Content-length: 18\r\n"
 		       	   "Content-Type: text/html; charset=utf8\r\n"
 		       	   "\r\n"
-		       	   "<html><body><h1>Hello 12345</h1></body></html>";
+		       	   "<b>Hello 12345</b>";
 void *process(void *arg);
+std::string* readFile(char *fpath);
 
+
+std::string* readFile(char *fpath){
+    
+    std::string buff;
+    
+    return &buff;
+}
 
 void *process(void *arg){
     
