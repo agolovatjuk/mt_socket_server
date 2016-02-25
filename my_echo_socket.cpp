@@ -20,8 +20,10 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <string.h>
-#include "set_nonblock.h"
 #include <pthread.h>
+#include <fcntl.h>
+#include <sys/ioctl.h>
+
 
 //#include <sys/stat.h>
 //#include <stdio.h>
@@ -35,6 +37,8 @@
 
 using namespace std;
 
+std::string WORKDIR;
+
 std::string* read_index(const char* fname);
 void *process(void *arg);
 int req_parser(std::string request, std::string* pth, std::string* cgi);
@@ -47,13 +51,30 @@ static const char* templ = "HTTP/1.0 200 OK\r\n"
 
 static const char* not_found = "HTTP/1.0 404 NOT FOUND\r\nContent-Type: text/html\r\n\r\n";
 
-int req_parser(std::string request, std::string* pth, std::string* cgi) {
+
+int set_nonblock(int fd){
+    
+    int flags;
+    
+#if defined (O_NONBLOCK)
+    if (-1 == (flags = fcntl(fd, F_GETFL, 0)))
+        flags = 0;
+    return fcntl(fd, F_SETFL, flags|O_NONBLOCK);
+#else
+    flags = 1;
+    return ioctl(fd, FIOBIO, &flags);
+#endif
+}
+
+
+int req_parser(std::string request, std::string* pth, std::string* cgi = NULL) {
     
     std::string index;
     char *t, *path, *cgi_query;
     
     pth->erase();
-    cgi->erase();
+    if(cgi)
+        cgi->erase();
     
     t = strtok(&request[0], " ");
     while(t) {
@@ -124,39 +145,34 @@ std::string* read_index(const char* fname = "index.html"){
         data->append("error memory alloc");
     }
     else {
-        data->erase();
-        data->append(a);
+        data->assign(a);
         delete (a);
     }
-    
+
     return data;
 }
 
 void *process(void *arg){
     
     int SlaveSocket = * (int *) arg;
-    char buff[512];
-    char *b;
+    char buff[576];
     std::string* rbuff;
-    std::string path, cgi;
+    std::string path;
 
-//    sleep(10);
+//    sleep(.1);
     bzero(buff, sizeof(buff));
     ssize_t rcv = recv(SlaveSocket, buff, sizeof(buff), MSG_NOSIGNAL);
-    cout << "Req:\n" << buff << endl;
+    cout << "recv:" << recv << ":Req:\n" << buff  <<  endl;
     if(-1 != rcv){
         cout << "Pthread:" << pthread_self() << endl;
-        req_parser(buff, &path, &cgi);
+        req_parser(buff, &path);
         rbuff = read_index(path.c_str());
-        //strncpy(buff, rbuff->c_str(), sizeof(buff));
-        //ssize_t snd = send(SlaveSocket, buff, sizeof(buff), MSG_NOSIGNAL);
         ssize_t snd = send(SlaveSocket, rbuff->c_str(), strlen(rbuff->c_str()), MSG_NOSIGNAL);
     }
-    else {
-        ;
+//    else {
 //        strncpy(buff, "\n\ngood by\n", sizeof(buff));
 //        ssize_t snd = send(SlaveSocket, buff, sizeof(buff), MSG_NOSIGNAL);
-    }
+//    }
     shutdown(SlaveSocket, SHUT_RDWR);
     close(SlaveSocket);
     
@@ -173,15 +189,39 @@ int main(int argc, char** argv) {
     int MasterSocket, SlaveSocket, b, optval;
 //    char buff[256];
     pthread_t thread;
+//    /home/box/final/final -h <ip> -p <port> -d <directory>
+    int port;
+    std::string ip;
+    int rezopt;
+    cout << port << endl;
 
+    while ( (rezopt = getopt(argc, argv, "h:p:d:") ) != 1) {
+        switch(rezopt) {
+            case 'h':
+                ip = optarg;
+                break;
+            case 'p':
+                port = atoi(optarg);
+                break;
+            case 'd':
+                WORKDIR = optarg;
+                break;
+            default:
+                exit(EXIT_FAILURE);
+        };
+    }
+    
+    cout << port << endl;
     struct sockaddr_in sa;
     sa.sin_family = AF_INET;
-    sa.sin_port = htons(12345);
+    sa.sin_port = htons(port);//(12345);
     
     
 //    sa.sin_addr.s_addr = htonl(INADDR_LOOPBACK);    
 //    sa.sin_addr.s_addr = htonl(INADDR_ANY); // all interfaces
-    int err = inet_pton(AF_INET, "127.0.0.1", &(sa.sin_addr));
+//    int err = inet_pton(AF_INET, "127.0.0.1", &(sa.sin_addr));
+    int err = inet_pton(AF_INET, ip.data(), &(sa.sin_addr));
+
     if (err <= 0) {
         perror("inet_pton");
         exit(EXIT_FAILURE);
@@ -213,12 +253,12 @@ int main(int argc, char** argv) {
     }
     
     while(1){
-//        struct timeval tv;
-//        tv.tv_sec = 5;
-//        tv.tv_usec = 0;
+        struct timeval tv;
+        tv.tv_sec = 1;
+        tv.tv_usec = 0;
         
         SlaveSocket = accept(MasterSocket, NULL, NULL);
-        if(SlaveSocket == -1){
+        if(SlaveSocket <= 0){
             perror("accept error");
             exit(EXIT_FAILURE);
         
@@ -227,7 +267,7 @@ int main(int argc, char** argv) {
         
         } 
         else {    
-//            set_nonblock(SlaveSocket);
+            set_nonblock(SlaveSocket);
             pthread_create(&thread, 0, process, &SlaveSocket);
             pthread_detach(thread);
         }
