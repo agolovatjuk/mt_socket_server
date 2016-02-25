@@ -37,6 +37,7 @@ using namespace std;
 
 std::string* read_index(const char* fname);
 void *process(void *arg);
+int req_parser(std::string request, std::string* pth, std::string* cgi);
 
 static const char* templ = "HTTP/1.0 200 OK\r\n"
 		           "Content-length: %d\r\n"
@@ -46,6 +47,54 @@ static const char* templ = "HTTP/1.0 200 OK\r\n"
 
 static const char* not_found = "HTTP/1.0 404 NOT FOUND\r\nContent-Type: text/html\r\n\r\n";
 
+int req_parser(std::string request, std::string* pth, std::string* cgi) {
+    
+    std::string index;
+    char *t, *path, *cgi_query;
+    
+    pth->erase();
+    cgi->erase();
+    
+    t = strtok(&request[0], " ");
+    while(t) {
+        if (strcmp(t, "GET") == 0){
+            t = strtok(NULL, " ");
+            path = t;
+            t = strtok(t, "?");
+            cgi_query = strtok(NULL, "?");
+            path = strtok(path, "/");
+            break;
+        }
+//        t = strtok(NULL, " ");
+    }
+
+//    istringstream iss(d4);
+//    do {
+//        string sub;
+//        iss >> sub;
+//        if (sub == "GET"){
+//            iss >> index;
+//            break;
+//        }
+//    } while(iss);
+    
+    if (!path)
+        index = "index.html";
+    else
+        index.assign(path);
+//    else if (strcmp(path, "/") == 0) 
+//        index = "index.html";
+//    else if (strcmp(path, "/index.html") == 0)
+//        index = "index.html";
+//    else if (strcmp(path, "/index.html/") == 0)
+//        index = "index.html";
+    
+    pth->assign(index);
+    if(cgi_query)
+        cgi->assign(cgi_query);
+
+    return 0;
+}
 
 std::string* read_index(const char* fname = "index.html"){
 
@@ -89,14 +138,16 @@ void *process(void *arg){
     char buff[512];
     char *b;
     std::string* rbuff;
+    std::string path, cgi;
 
 //    sleep(10);
     bzero(buff, sizeof(buff));
     ssize_t rcv = recv(SlaveSocket, buff, sizeof(buff), MSG_NOSIGNAL);
     cout << "Req:\n" << buff << endl;
     if(-1 != rcv){
-        cout << "Pthread:" << pthread_self() << endl;      
-        rbuff = read_index("index.html");
+        cout << "Pthread:" << pthread_self() << endl;
+        req_parser(buff, &path, &cgi);
+        rbuff = read_index(path.c_str());
         //strncpy(buff, rbuff->c_str(), sizeof(buff));
         //ssize_t snd = send(SlaveSocket, buff, sizeof(buff), MSG_NOSIGNAL);
         ssize_t snd = send(SlaveSocket, rbuff->c_str(), strlen(rbuff->c_str()), MSG_NOSIGNAL);
@@ -116,6 +167,7 @@ void *process(void *arg){
 /*
  * 
  */
+
 int main(int argc, char** argv) {
     
     int MasterSocket, SlaveSocket, b, optval;
@@ -186,4 +238,3 @@ int main(int argc, char** argv) {
     
     return 0;
 }
-
