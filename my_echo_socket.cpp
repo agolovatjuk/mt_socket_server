@@ -38,12 +38,13 @@ using namespace std;
 std::string* read_index(const char* fname);
 void *process(void *arg);
 
-static const char* not_found = "HTTP/1.0 404 NOT FOUND\r\nContent-Type: text/html\r\n\r\n";
 static const char* templ = "HTTP/1.0 200 OK\r\n"
 		           "Content-length: %d\r\n"
 		       	   "Content-Type: text/html; charset=utf8\r\n"
 		       	   "\r\n"
 		       	   "%s";
+
+static const char* not_found = "HTTP/1.0 404 NOT FOUND\r\nContent-Type: text/html\r\n\r\n";
 
 
 std::string* read_index(const char* fname = "index.html"){
@@ -51,30 +52,34 @@ std::string* read_index(const char* fname = "index.html"){
     std::string *data = new std::string;
     std::string buff; // = std::string("");
     std::ifstream f (fname, ios::in);
+    char *a, *page;
+    int sz;
 
     if(f.is_open()){
         while(getline(f, buff)) {
             data->append(buff);
         }
         f.close();
-        cout << data->c_str() << endl;
-        cout << strlen(templ)<< ":" << data->size() << endl;
-        char *a;
-        int sz = asprintf(&a, templ, data->size(), data->c_str());
-        if (sz == -1) {
-            data->append("error memory alloc");
-        }
-        else {
-            cout << strlen(a) << endl;
-            data->erase();
-            data->append(a);
-            delete (a);
-        }
+        page = (char *) templ;
     }
     else {
-        data->append(not_found);
+        page = (char *) not_found;
     }
 
+    if(page == templ)
+        sz = asprintf(&a, page, data->size(), data->c_str());
+    else
+        sz = asprintf(&a, page);
+
+    if (sz == -1) {
+        data->append("error memory alloc");
+    }
+    else {
+        data->erase();
+        data->append(a);
+        delete (a);
+    }
+    
     return data;
 }
 
@@ -85,13 +90,10 @@ void *process(void *arg){
     char *b;
     std::string* rbuff;
 
-//    bzero(buff, sizeof(buff));
-//    strncpy(buff, "You have only 5 sec\n\n", sizeof(buff));
-//    ssize_t snd = send(SlaveSocket, buff, sizeof(buff), MSG_NOSIGNAL);
-
 //    sleep(10);
     bzero(buff, sizeof(buff));
     ssize_t rcv = recv(SlaveSocket, buff, sizeof(buff), MSG_NOSIGNAL);
+    cout << "Req:\n" << buff << endl;
     if(-1 != rcv){
         cout << "Pthread:" << pthread_self() << endl;      
         rbuff = read_index("index.html");
@@ -100,8 +102,9 @@ void *process(void *arg){
         ssize_t snd = send(SlaveSocket, rbuff->c_str(), strlen(rbuff->c_str()), MSG_NOSIGNAL);
     }
     else {
-        strncpy(buff, "\n\ngood by\n", sizeof(buff));
-        ssize_t snd = send(SlaveSocket, buff, sizeof(buff), MSG_NOSIGNAL);
+        ;
+//        strncpy(buff, "\n\ngood by\n", sizeof(buff));
+//        ssize_t snd = send(SlaveSocket, buff, sizeof(buff), MSG_NOSIGNAL);
     }
     shutdown(SlaveSocket, SHUT_RDWR);
     close(SlaveSocket);
