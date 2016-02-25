@@ -11,8 +11,9 @@
  * Created on 21 февраля 2016 г., 16:11
  */
 
-//#include <cstdlib>
+#include <cstdlib>
 #include <iostream>
+#include <fstream>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <netinet/in.h>
@@ -34,40 +35,69 @@
 
 using namespace std;
 
+std::string* read_index(const char* fname);
+void *process(void *arg);
+
 static const char* not_found = "HTTP/1.0 404 NOT FOUND\r\nContent-Type: text/html\r\n\r\n";
 static const char* templ = "HTTP/1.0 200 OK\r\n"
-		           "Content-length: 18\r\n"
+		           "Content-length: %d\r\n"
 		       	   "Content-Type: text/html; charset=utf8\r\n"
 		       	   "\r\n"
-		       	   "<b>Hello 12345</b>";
-void *process(void *arg);
-std::string* readFile(char *fpath);
+		       	   "%s";
 
 
-std::string* readFile(char *fpath){
-    
-    std::string buff;
-    
-    return &buff;
+std::string* read_index(const char* fname = "index.html"){
+
+    std::string *data = new std::string;
+    std::string buff; // = std::string("");
+    std::ifstream f (fname, ios::in);
+
+    if(f.is_open()){
+        while(getline(f, buff)) {
+            data->append(buff);
+        }
+        f.close();
+        cout << data->c_str() << endl;
+        cout << strlen(templ)<< ":" << data->size() << endl;
+        char *a;
+        int sz = asprintf(&a, templ, data->size(), data->c_str());
+        if (sz == -1) {
+            data->append("error memory alloc");
+        }
+        else {
+            cout << strlen(a) << endl;
+            data->erase();
+            data->append(a);
+            delete (a);
+        }
+    }
+    else {
+        data->append(not_found);
+    }
+
+    return data;
 }
 
 void *process(void *arg){
     
     int SlaveSocket = * (int *) arg;
     char buff[512];
+    char *b;
+    std::string* rbuff;
 
 //    bzero(buff, sizeof(buff));
 //    strncpy(buff, "You have only 5 sec\n\n", sizeof(buff));
 //    ssize_t snd = send(SlaveSocket, buff, sizeof(buff), MSG_NOSIGNAL);
 
+//    sleep(10);
     bzero(buff, sizeof(buff));
     ssize_t rcv = recv(SlaveSocket, buff, sizeof(buff), MSG_NOSIGNAL);
     if(-1 != rcv){
-//        GET / HTTP/1.1
-//        GET /index.html HTTP/1.1
-        cout << buff << endl;
-        strncpy(buff, templ, sizeof(buff));
-        ssize_t snd = send(SlaveSocket, buff, sizeof(buff), MSG_NOSIGNAL);
+        cout << "Pthread:" << pthread_self() << endl;      
+        rbuff = read_index("index.html");
+        //strncpy(buff, rbuff->c_str(), sizeof(buff));
+        //ssize_t snd = send(SlaveSocket, buff, sizeof(buff), MSG_NOSIGNAL);
+        ssize_t snd = send(SlaveSocket, rbuff->c_str(), strlen(rbuff->c_str()), MSG_NOSIGNAL);
     }
     else {
         strncpy(buff, "\n\ngood by\n", sizeof(buff));
