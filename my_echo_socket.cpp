@@ -38,6 +38,7 @@
 using namespace std;
 
 std::string WORKDIR;
+pthread_mutex_t lock;
 
 std::string* read_index(const char* fname);
 void *process(void *arg);
@@ -162,11 +163,14 @@ void *process(void *arg){
     std::string path;
 
 //    sleep(.1);
+
     bzero(buff, sizeof(buff));
     ssize_t rcv = recv(SlaveSocket, buff, sizeof(buff), MSG_NOSIGNAL);
-    cout << "recv:" << recv << ":Req:\n" << buff  <<  endl;
+    pthread_mutex_lock(&lock);
+    cout << "Pthread:" << pthread_self() << endl;
+    cout << "recv:" << recv << ":Request:\n" << buff  <<  endl;
+    pthread_mutex_unlock(&lock);
     if(-1 != rcv && buff){
-        cout << "Pthread:" << pthread_self() << endl;
         req_parser(buff, &path);
         rbuff = read_index(path.c_str());
         ssize_t snd = send(SlaveSocket, rbuff->c_str(), strlen(rbuff->c_str()), MSG_NOSIGNAL);
@@ -258,6 +262,11 @@ int main(int argc, char** argv) {
         exit(EXIT_FAILURE);
     }
     
+    if(pthread_mutex_init(&lock, NULL) !=0){
+        perror("init mutex");
+        exit(EXIT_FAILURE);
+    }
+
     int *iptr;
 
     while(1){
@@ -288,6 +297,9 @@ int main(int argc, char** argv) {
         }
     
     }
+
+    pthread_mutex_destroy(&lock);
+
     shutdown(MasterSocket, SHUT_RDWR);
     close(MasterSocket);
     
