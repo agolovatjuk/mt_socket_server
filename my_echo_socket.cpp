@@ -155,7 +155,7 @@ std::string* read_index(const char* fname = "index.html"){
 
 void *process(void *arg){
     
-    int SlaveSocket = * (int *) arg;
+    int SlaveSocket = * ((int *) arg);
     free(arg);
     char buff[1024];
 
@@ -199,38 +199,39 @@ int main(int argc, char** argv) {
     int THREADS = 5;
     pthread_t th_pool[THREADS];
 //    /home/box/final/final -h <ip> -p <port> -d <directory>
-    int port;
-    std::string ip;
+    int port = 12345;
+    std::string ip = "127.0.0.1";
     int rezopt;
-    cout << port << endl;
 
-//    while ( (rezopt = getopt(argc, argv, "h:p:d:") ) != 1) {
-//        switch(rezopt) {
-//            case 'h':
-//                ip = optarg;
-//                break;
-//            case 'p':
-//                port = atoi(optarg);
-//                break;
-//            case 'd':
-//                WORKDIR = optarg;
-//                break;
-////            default:
-////                exit(EXIT_FAILURE);
-//        }
-//    }
+    extern char *optarg;
+    extern int optind, opterr, optopt;
     
-    cout << port << endl;
+    while ( (rezopt = getopt(argc, argv, "h:p:d:") ) != -1) {
+        switch(rezopt) {
+            case 'h':
+                ip = optarg;
+                break;
+            case 'p':
+                port = atoi(optarg);
+                break;
+            case 'd':
+                WORKDIR = optarg;
+                break;
+//            case '?': printf("Error found !\n");break;
+            default:
+                exit(EXIT_FAILURE);
+        }
+    }
+    
     struct sockaddr_in sa;
     sa.sin_family = AF_INET;
-//    sa.sin_port = htons(port);//(12345);
-    sa.sin_port = htons(12345);
+    sa.sin_port = htons(port);//(12345);
     
     
 //    sa.sin_addr.s_addr = htonl(INADDR_LOOPBACK);    
 //    sa.sin_addr.s_addr = htonl(INADDR_ANY); // all interfaces
-    int err = inet_pton(AF_INET, "127.0.0.1", &(sa.sin_addr));
-//    int err = inet_pton(AF_INET, ip.data(), &(sa.sin_addr));
+//    int err = inet_pton(AF_INET, "127.0.0.1", &(sa.sin_addr));
+    int err = inet_pton(AF_INET, ip.data(), &(sa.sin_addr));
 
     if (err <= 0) {
         perror("inet_pton");
