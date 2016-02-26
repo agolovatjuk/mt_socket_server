@@ -285,14 +285,6 @@ int main(int argc, char** argv) {
             pthread_create(&thread, 0, process, iptr);
 //            pthread_join(thread, NULL);
             pthread_detach(thread);
-//            sleep(.01);
-
-//            for (int i = 0; i < THREADS; i++ ){
-//                cout << "thread:" << i << endl;
-//                pthread_create(&th_pool[i], 0, process, &SlaveSocket);
-//                pthread_join(th_pool[i], NULL);
-//            }
-
         }
     
     }
