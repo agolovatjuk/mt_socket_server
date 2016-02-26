@@ -155,7 +155,9 @@ std::string* read_index(const char* fname = "index.html"){
 void *process(void *arg){
     
     int SlaveSocket = * (int *) arg;
-    char buff[576];
+    free(arg);
+    char buff[1024];
+
     std::string* rbuff;
     std::string path;
 
@@ -163,7 +165,7 @@ void *process(void *arg){
     bzero(buff, sizeof(buff));
     ssize_t rcv = recv(SlaveSocket, buff, sizeof(buff), MSG_NOSIGNAL);
     cout << "recv:" << recv << ":Req:\n" << buff  <<  endl;
-    if(-1 != rcv){
+    if(-1 != rcv && buff){
         cout << "Pthread:" << pthread_self() << endl;
         req_parser(buff, &path);
         rbuff = read_index(path.c_str());
@@ -176,6 +178,7 @@ void *process(void *arg){
     shutdown(SlaveSocket, SHUT_RDWR);
     close(SlaveSocket);
     
+//    return NULL;
     pthread_exit(0);
 }
 
@@ -189,38 +192,41 @@ int main(int argc, char** argv) {
     int MasterSocket, SlaveSocket, b, optval;
 //    char buff[256];
     pthread_t thread;
+    int THREADS = 5;
+    pthread_t th_pool[THREADS];
 //    /home/box/final/final -h <ip> -p <port> -d <directory>
     int port;
     std::string ip;
     int rezopt;
     cout << port << endl;
 
-    while ( (rezopt = getopt(argc, argv, "h:p:d:") ) != 1) {
-        switch(rezopt) {
-            case 'h':
-                ip = optarg;
-                break;
-            case 'p':
-                port = atoi(optarg);
-                break;
-            case 'd':
-                WORKDIR = optarg;
-                break;
-            default:
-                exit(EXIT_FAILURE);
-        };
-    }
+//    while ( (rezopt = getopt(argc, argv, "h:p:d:") ) != 1) {
+//        switch(rezopt) {
+//            case 'h':
+//                ip = optarg;
+//                break;
+//            case 'p':
+//                port = atoi(optarg);
+//                break;
+//            case 'd':
+//                WORKDIR = optarg;
+//                break;
+////            default:
+////                exit(EXIT_FAILURE);
+//        }
+//    }
     
     cout << port << endl;
     struct sockaddr_in sa;
     sa.sin_family = AF_INET;
-    sa.sin_port = htons(port);//(12345);
+//    sa.sin_port = htons(port);//(12345);
+    sa.sin_port = htons(12345);
     
     
 //    sa.sin_addr.s_addr = htonl(INADDR_LOOPBACK);    
 //    sa.sin_addr.s_addr = htonl(INADDR_ANY); // all interfaces
-//    int err = inet_pton(AF_INET, "127.0.0.1", &(sa.sin_addr));
-    int err = inet_pton(AF_INET, ip.data(), &(sa.sin_addr));
+    int err = inet_pton(AF_INET, "127.0.0.1", &(sa.sin_addr));
+//    int err = inet_pton(AF_INET, ip.data(), &(sa.sin_addr));
 
     if (err <= 0) {
         perror("inet_pton");
@@ -252,13 +258,19 @@ int main(int argc, char** argv) {
         exit(EXIT_FAILURE);
     }
     
+    int *iptr;
+
     while(1){
         struct timeval tv;
         tv.tv_sec = 1;
         tv.tv_usec = 0;
         
-        SlaveSocket = accept(MasterSocket, NULL, NULL);
-        if(SlaveSocket <= 0){
+//        http://www.iakovlev.org/index.html?p=95
+        iptr = (int *) malloc(sizeof(int));
+        *iptr = accept(MasterSocket, NULL, NULL);
+//        SlaveSocket = accept(MasterSocket, NULL, NULL);
+//        if(SlaveSocket <= 0){
+        if(&iptr <= 0){
             perror("accept error");
             exit(EXIT_FAILURE);
         
@@ -267,9 +279,20 @@ int main(int argc, char** argv) {
         
         } 
         else {    
-            set_nonblock(SlaveSocket);
-            pthread_create(&thread, 0, process, &SlaveSocket);
+//            set_nonblock(SlaveSocket);
+            set_nonblock(*iptr);
+//            pthread_create(&thread, 0, process, &SlaveSocket);
+            pthread_create(&thread, 0, process, iptr);
+//            pthread_join(thread, NULL);
             pthread_detach(thread);
+//            sleep(.01);
+
+//            for (int i = 0; i < THREADS; i++ ){
+//                cout << "thread:" << i << endl;
+//                pthread_create(&th_pool[i], 0, process, &SlaveSocket);
+//                pthread_join(th_pool[i], NULL);
+//            }
+
         }
     
     }
