@@ -111,7 +111,11 @@ int req_parser(std::string request, std::string* pth, std::string* cgi = NULL) {
 //    else if (strcmp(path, "/index.html/") == 0)
 //        index = "index.html";
     
-    pth->assign(index);
+    pth->assign(WORKDIR);
+    pth->append("//");
+    pth->append(index);
+//    cout << pth->c_str() << endl;
+//    pth->assign(index);
     if(cgi_query)
         cgi->assign(cgi_query);
 
