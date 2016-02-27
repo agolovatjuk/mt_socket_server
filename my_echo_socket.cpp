@@ -110,9 +110,10 @@ int req_parser(std::string request, std::string* pth, std::string* cgi = NULL) {
 //        index = "index.html";
 //    else if (strcmp(path, "/index.html/") == 0)
 //        index = "index.html";
-    
-    pth->assign(WORKDIR);
-    pth->append("//");
+    if( ! WORKDIR.empty()){
+        pth->assign(WORKDIR);
+        pth->append("//");
+    }
     pth->append(index);
 //    cout << pth->c_str() << endl;
 //    pth->assign(index);
@@ -122,9 +123,8 @@ int req_parser(std::string request, std::string* pth, std::string* cgi = NULL) {
     return 0;
 }
 
-std::string* read_index(const char* fname = "index.html"){
+ssize_t read_index(std::string *data, const char* fname = "index.html"){
 
-    std::string *data = new std::string;
     std::string buff; // = std::string("");
     std::ifstream f (fname, ios::in);
     char *a, *page;
@@ -154,7 +154,7 @@ std::string* read_index(const char* fname = "index.html"){
         delete (a);
     }
 
-    return data;
+    return data->size();
 }
 
 void *process(void *arg){
@@ -163,7 +163,7 @@ void *process(void *arg){
     free(arg);
     char buff[1024];
 
-    std::string* rbuff;
+    std::string rbuff;
     std::string path;
 
 //    sleep(.1);
@@ -176,8 +176,8 @@ void *process(void *arg){
     pthread_mutex_unlock(&lock);
     if(-1 != rcv && buff){
         req_parser(buff, &path);
-        rbuff = read_index(path.c_str());
-        ssize_t snd = send(SlaveSocket, rbuff->c_str(), strlen(rbuff->c_str()), MSG_NOSIGNAL);
+        read_index(&rbuff, path.c_str());
+        ssize_t snd = send(SlaveSocket, rbuff.c_str(), rbuff.size(), MSG_NOSIGNAL);
     }
 //    else {
 //        strncpy(buff, "\n\ngood by\n", sizeof(buff));
@@ -242,9 +242,9 @@ int main(int argc, char** argv) {
         exit(EXIT_FAILURE);
     }
     
-    set_nonblock(MasterSocket);
     
     MasterSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP); // IPP
+//    set_nonblock(MasterSocket);
     if (MasterSocket < 0){
         perror("socket");
         exit(EXIT_FAILURE);
@@ -287,12 +287,10 @@ int main(int argc, char** argv) {
         if(&iptr <= 0){
             perror("accept error");
             exit(EXIT_FAILURE);
-        
-//        setsockopt(SlaveSocket, SOL_SOCKET, SO_SNDTIMEO, (char *) &tv, sizeof(tv));
-//        setsockopt(SlaveSocket, SOL_SOCKET, SO_RCVTIMEO, (char *) &tv, sizeof(tv));
-        
         } 
         else {    
+//        setsockopt(SlaveSocket, SOL_SOCKET, SO_SNDTIMEO, (char *) &tv, sizeof(tv));
+//        setsockopt(SlaveSocket, SOL_SOCKET, SO_RCVTIMEO, (char *) &tv, sizeof(tv));
 //            set_nonblock(SlaveSocket);
             set_nonblock(*iptr);
 //            pthread_create(&thread, 0, process, &SlaveSocket);

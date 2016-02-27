@@ -5,7 +5,7 @@
 #include <sys/stat.h>
 #include <string.h>
 
-int main(int argc, char* argv[])
+int d_main(int argc, char* argv[])
 {
     FILE *fp= NULL;
     pid_t process_id = 0;
