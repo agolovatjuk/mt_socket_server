@@ -111,8 +111,10 @@ int req_parser(std::string request, std::string* pth, std::string* cgi = NULL) {
 //    else if (strcmp(path, "/index.html/") == 0)
 //        index = "index.html";
     
-    pth->assign(WORKDIR);
-    pth->append("//");
+    if ( ! WORKDIR.empty()){
+        pth->assign(WORKDIR);
+        pth->append("//");
+    }
     pth->append(index);
 //    cout << pth->c_str() << endl;
 //    pth->assign(index);
@@ -122,9 +124,8 @@ int req_parser(std::string request, std::string* pth, std::string* cgi = NULL) {
     return 0;
 }
 
-std::string* read_index(const char* fname = "index.html"){
+ssize_t  read_index(const char* fname, std::string *data){
 
-    std::string *data = new std::string;
     std::string buff; // = std::string("");
     std::ifstream f (fname, ios::in);
     char *a, *page;
@@ -154,8 +155,62 @@ std::string* read_index(const char* fname = "index.html"){
         delete (a);
     }
 
-    return data;
+    return data->size();
 }
+
+
+void *proc2(void *arg){
+    
+    int SlaveSocket = * ((int *) arg);
+    free(arg);
+    
+    static char buff[1024];
+    std::string rbuff;
+    std::string path;
+    
+    fd_set rfds;
+    struct timeval tv;
+    int retval;
+
+   /* Watch stdin (fd 0) to see when it has input. */
+    FD_ZERO(&rfds);
+    FD_SET(SlaveSocket, &rfds);
+
+   /* Wait up to five seconds. */
+    tv.tv_sec = 5;
+    tv.tv_usec = 0;
+
+    retval = select(SlaveSocket+1, &rfds, NULL, NULL, &tv);
+    /* Don't rely on the value of tv now! */
+    
+    bzero(buff, sizeof(buff));
+    int RecvSize = recv (SlaveSocket, buff, 1024, MSG_NOSIGNAL);
+
+    if((RecvSize == 0) && errno != EAGAIN){
+        shutdown(SlaveSocket, SHUT_RDWR);
+        close(SlaveSocket);
+//        SlaveSockets->erase(i);
+    }
+    else if (RecvSize != 0) {
+//        strncpy(Buffer + RecvSize, "125", 3);
+//        send(SlaveSocket, Buffer, RecvSize, MSG_NOSIGNAL);
+        req_parser(buff, &path);
+        read_index(path.c_str(), &rbuff);
+        ssize_t snd = send(SlaveSocket, rbuff.c_str(), rbuff.size(), MSG_NOSIGNAL);   
+    }   
+   
+   if (retval == -1)
+        perror("select()");
+    else if (retval)
+        printf("Data is available now.\n");
+        /* FD_ISSET(0, &rfds) will be true. */
+    else
+        printf("No data within five seconds.\n");
+
+//   exit(EXIT_SUCCESS);
+
+}
+
 
 void *process(void *arg){
     
@@ -163,7 +218,7 @@ void *process(void *arg){
     free(arg);
     char buff[1024];
 
-    std::string* rbuff;
+    std::string rbuff;
     std::string path;
 
 //    sleep(.1);
@@ -176,8 +231,8 @@ void *process(void *arg){
     pthread_mutex_unlock(&lock);
     if(-1 != rcv && buff){
         req_parser(buff, &path);
-        rbuff = read_index(path.c_str());
-        ssize_t snd = send(SlaveSocket, rbuff->c_str(), strlen(rbuff->c_str()), MSG_NOSIGNAL);
+        read_index(path.c_str(), &rbuff);
+        ssize_t snd = send(SlaveSocket, rbuff.c_str(), strlen(rbuff.c_str()), MSG_NOSIGNAL);
     }
 //    else {
 //        strncpy(buff, "\n\ngood by\n", sizeof(buff));
@@ -186,8 +241,8 @@ void *process(void *arg){
     shutdown(SlaveSocket, SHUT_RDWR);
     close(SlaveSocket);
     
-//    return NULL;
-    pthread_exit(0);
+    return NULL;
+//    pthread_exit(0);
 }
 
 
@@ -242,9 +297,11 @@ int main(int argc, char** argv) {
         exit(EXIT_FAILURE);
     }
     
-    set_nonblock(MasterSocket);
     
     MasterSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP); // IPP
+    
+//    set_nonblock(MasterSocket);
+    
     if (MasterSocket < 0){
         perror("socket");
         exit(EXIT_FAILURE);
@@ -272,6 +329,7 @@ int main(int argc, char** argv) {
         exit(EXIT_FAILURE);
     }
 
+    
     int *iptr;
 
     while(1){
@@ -287,20 +345,18 @@ int main(int argc, char** argv) {
         if(&iptr <= 0){
             perror("accept error");
             exit(EXIT_FAILURE);
-        
+        } 
 //        setsockopt(SlaveSocket, SOL_SOCKET, SO_SNDTIMEO, (char *) &tv, sizeof(tv));
 //        setsockopt(SlaveSocket, SOL_SOCKET, SO_RCVTIMEO, (char *) &tv, sizeof(tv));
         
-        } 
-        else {    
-//            set_nonblock(SlaveSocket);
-            set_nonblock(*iptr);
-//            pthread_create(&thread, 0, process, &SlaveSocket);
-            pthread_create(&thread, 0, process, iptr);
-//            pthread_join(thread, NULL);
-            pthread_detach(thread);
-        }
-    
+////            set_nonblock(SlaveSocket);
+        set_nonblock(*iptr);
+////            pthread_create(&thread, 0, process, &SlaveSocket);
+        pthread_create(&thread, 0, proc2, iptr);
+////            pthread_join(thread, NULL);
+        pthread_detach(thread);
+//        proc2(iptr);
+//        process(iptr);
     }
 
     pthread_mutex_destroy(&lock);
