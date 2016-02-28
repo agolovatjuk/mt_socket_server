@@ -24,6 +24,7 @@
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
+#include <algorithm>
 
 //#include <stdio.h>
 //#include <stdlib.h>
@@ -130,7 +131,7 @@ int req_parser(std::string request, std::string* pth, std::string* cgi = NULL) {
 
 ssize_t  read_index(const char* fname, std::string *data){
 
-    std::string buff; // = std::string("");
+    std::string buff, b; // = std::string("");
     std::ifstream f (fname, ios::in);
     char *a, *page;
     int sz;
@@ -141,25 +142,36 @@ ssize_t  read_index(const char* fname, std::string *data){
         }
         f.close();
         page = (char *) templ;
+        b = "HTTP/1.0 200 OK\r\n"
+             "Content-length: ";
+        b+=std::to_string(data->size());
+        b+="\r\n"
+            "Connection: close\r\n"
+            "Content-Type: text/html\r\n"
+            "\r\n";
+        b+=data->c_str();
     }
     else {
-        page = (char *) not_found;
+//        page = (char *) not_found;
+        b.assign(not_found);
     }
 
-    if(page == templ)
-        sz = asprintf(&a, page, data->size(), data->c_str());
-    else
-        sz = asprintf(&a, page);
-
-    if (sz == -1) {
-        data->append("error memory alloc");
-    }
-    else {
-        data->assign(a);
-        delete (a);
-    }
-
-    return data->size();
+//    if(page == templ)
+//        sz = asprintf(&a, page, data->size(), data->c_str());
+//    else
+//        sz = asprintf(&a, page);
+//
+//    if (sz == -1) {
+//        data->append("error memory alloc");
+//    }
+//    else {
+//        data->assign(a);
+//        delete (a);
+//    }
+//
+//    return data->size();
+    
+    return b.size();
 }
 
 
@@ -174,7 +186,8 @@ void *proc2(void *arg){
     fd_set rfds;
     struct timeval tv;
     int retval = 0;
-
+    int recVal = -1;
+    
    /* Watch stdin (fd 0) to see when it has input. */
     FD_ZERO(&rfds);
     FD_SET(SlaveSocket, &rfds);
@@ -188,8 +201,10 @@ void *proc2(void *arg){
     /* Don't rely on the value of tv now! */
     
     bzero(buff, sizeof(buff));
-    int recVal = recv (SlaveSocket, buff, 1024, MSG_NOSIGNAL);
-
+//    do {
+    recVal = recv (SlaveSocket, buff, 1024, MSG_NOSIGNAL);
+//    } while (recVal <= 0);
+    
 //    if (n == -1) {
 //    //something wrong
 //    } else if (n == 0)
@@ -366,8 +381,8 @@ int main_loop(int argc, char** argv) {
 //            pthread_create(&thread, 0, process, &SlaveSocket);
         pthread_create(&thread, 0, proc2, iptr);
 //        pthread_create(&thread, 0, process, iptr);
-//        pthread_join(thread, NULL);
-        pthread_detach(thread);
+        pthread_join(thread, NULL);
+//        pthread_detach(thread);
 //        proc2(iptr);
 //        process(iptr);
     }
