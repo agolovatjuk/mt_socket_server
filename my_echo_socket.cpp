@@ -402,7 +402,7 @@ int main (int argc, char **argv){
         // exit(1);
     }
     // Change the current working directory to root.
-//    chdir("/");
+    chdir("/");
     // Close stdin. stdout and stderr
     
     close(STDIN_FILENO);
