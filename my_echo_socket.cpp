@@ -160,7 +160,7 @@ ssize_t  read_index(const char* fname, std::string *data){
     }
     else {
 //        page = (char *) not_found;
-        b="HTTP/1.0 404 NOT FOUND\r\nContent-Type: text/html\r\n\r\n";
+        b="HTTP/1.0 404 NOT FOUND\r\nContent-length: 3\r\nContent-Type: text/html\r\n\r\nNOT";
     }
 
 //    if(page == templ)
