@@ -156,7 +156,7 @@ ssize_t  read_index(const char* fname, std::string *data){
     }
     else {
 //        page = (char *) not_found;
-        b.assign(not_found);
+        b="HTTP/1.0 404 NOT FOUND\r\nContent-Type: text/html\r\n\r\n";
     }
 
 //    if(page == templ)
@@ -174,6 +174,8 @@ ssize_t  read_index(const char* fname, std::string *data){
 //
 //    return data->size();
     
+        data->assign(b);
+        
     return b.size();
 }
 
