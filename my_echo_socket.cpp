@@ -423,6 +423,7 @@ int main (int argc, char **argv){
     
     pid_t process_id = 0;
     pid_t sid = 0;
+    pid_t p2;
 
     process_id = fork();
     if (process_id > 0) {
@@ -430,23 +431,34 @@ int main (int argc, char **argv){
         // return success in exit status
         exit(0);
     }
-
-    umask(0);
-
-    //set new session
-    sid = setsid();
+    else {
     
-    if(sid < 0) {
-        // Return failure
-        // exit(1);
+        p2 = fork();
+        if(p2!=0) 
+        {
+//            printf("p2 process id is  %d",getpid());
+            exit(0);
+        }
+        else
+        {                
+            umask(0);
+
+            //set new session
+            sid = setsid();
+
+            if(sid < 0) {
+                // Return failure
+                // exit(1);
+            }
+            // Change the current working directory to root.
+            chdir("/");
+            // Close stdin. stdout and stderr
+
+            close(STDIN_FILENO);
+            close(STDOUT_FILENO);
+            close(STDERR_FILENO);
+
+            return main_loop(argc, argv);
+        }
     }
-    // Change the current working directory to root.
-    chdir("/");
-    // Close stdin. stdout and stderr
-    
-    close(STDIN_FILENO);
-    close(STDOUT_FILENO);
-    close(STDERR_FILENO);
-    
-    return main_loop(argc, argv);
 }
