@@ -80,23 +80,29 @@ int req_parser(std::string request, std::string* pth, std::string* cgi = NULL) {
     
     std::string index;
     char *t, *path, *cgi_query;
+    std::string path2;
     
     pth->erase();
-    if(cgi)
-        cgi->erase();
     
-    t = strtok(&request[0], " ");
-    while(t) {
-        if (strcmp(t, "GET") == 0){
-            t = strtok(NULL, " ");
-            path = t;
-            t = strtok(t, "?");
-            cgi_query = strtok(NULL, "?");
-            path = strtok(path, "/");
-            break;
-        }
-//        t = strtok(NULL, " ");
-    }
+    size_t pos = request.find(' ',0);
+    if(pos > 0 && "GET" == request.substr(0,pos)){
+        size_t posf = request.find(' ',pos+1);
+        path2 = request.substr(pos+1+1,posf-pos-1-1);
+        pos = path2.find('?',0);
+        if(pos!=-1)
+            path2 = path2.substr(0,path2.find('?',0));
+    }    
+//    t = strtok(&request[0], " ");
+//    while(t) {
+//        if (strcmp(t, "GET") == 0){
+//            t = strtok(NULL, " ");
+//            path = t;
+//            t = strtok(t, "?");
+//            cgi_query = strtok(NULL, "?");
+//            path = strtok(path, "/");
+//            break;
+//        }
+//    }
 
 //    istringstream iss(d4);
 //    do {
@@ -108,10 +114,10 @@ int req_parser(std::string request, std::string* pth, std::string* cgi = NULL) {
 //        }
 //    } while(iss);
     
-    if (!path)
+    if (path2.empty())
         index = "index.html";
     else
-        index.assign(path);
+        index.assign(path2);
 //    else if (strcmp(path, "/") == 0) 
 //        index = "index.html";
 //    else if (strcmp(path, "/index.html") == 0)
@@ -126,8 +132,6 @@ int req_parser(std::string request, std::string* pth, std::string* cgi = NULL) {
     pth->append(index);
 //    cout << pth->c_str() << endl;
 //    pth->assign(index);
-    if(cgi_query)
-        cgi->assign(cgi_query);
 
     return 0;
 }
