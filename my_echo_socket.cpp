@@ -381,8 +381,8 @@ int main_loop(int argc, char** argv) {
 //            pthread_create(&thread, 0, process, &SlaveSocket);
         pthread_create(&thread, 0, proc2, iptr);
 //        pthread_create(&thread, 0, process, iptr);
-        pthread_join(thread, NULL);
-//        pthread_detach(thread);
+//        pthread_join(thread, NULL);
+        pthread_detach(thread);
 //        proc2(iptr);
 //        process(iptr);
     }
