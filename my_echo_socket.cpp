@@ -38,7 +38,12 @@
 using namespace std;
 
 std::string WORKDIR;
-pthread_mutex_t lock;
+
+pthread_mutex_t     lock;
+pthread_mutex_t     mLock = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t      cond  = PTHREAD_COND_INITIALIZER;
+
+int T_CNT = 0;
 
 std::string* read_index(const char* fname);
 void *process(void *arg);
@@ -170,28 +175,37 @@ void *proc2(void *arg){
     
     fd_set rfds;
     struct timeval tv;
-    int retval;
+    int retval = 0;
 
    /* Watch stdin (fd 0) to see when it has input. */
     FD_ZERO(&rfds);
     FD_SET(SlaveSocket, &rfds);
 
    /* Wait up to five seconds. */
-    tv.tv_sec = 5;
+    tv.tv_sec = 2;
     tv.tv_usec = 0;
 
-    retval = select(SlaveSocket+1, &rfds, NULL, NULL, &tv);
+    cout << SlaveSocket << endl;
+    retval = select(SlaveSocket + 1, &rfds, NULL, NULL, &tv);
     /* Don't rely on the value of tv now! */
     
     bzero(buff, sizeof(buff));
-    int RecvSize = recv (SlaveSocket, buff, 1024, MSG_NOSIGNAL);
+    int recVal = recv (SlaveSocket, buff, 1024, MSG_NOSIGNAL);
 
-    if((RecvSize == 0) && errno != EAGAIN){
-        shutdown(SlaveSocket, SHUT_RDWR);
-        close(SlaveSocket);
-//        SlaveSockets->erase(i);
-    }
-    else if (RecvSize != 0) {
+//    if (n == -1) {
+//    //something wrong
+//    } else if (n == 0)
+//    continue;//timeout
+//    if (!FD_ISSET(sd, &input))
+//   ;//again something wrong
+
+//    if((retVal == 0) && errno != EAGAIN){
+//        shutdown(SlaveSocket, SHUT_RDWR);
+//        close(SlaveSocket);
+////        SlaveSockets->erase(i);
+//    }
+    
+    if (recVal > 0) {
 //        strncpy(Buffer + RecvSize, "125", 3);
 //        send(SlaveSocket, Buffer, RecvSize, MSG_NOSIGNAL);
         req_parser(buff, &path);
@@ -199,15 +213,20 @@ void *proc2(void *arg){
         ssize_t snd = send(SlaveSocket, rbuff.c_str(), rbuff.size(), MSG_NOSIGNAL);   
     }   
    
-   if (retval == -1)
-        perror("select()");
-    else if (retval)
-        printf("Data is available now.\n");
-        /* FD_ISSET(0, &rfds) will be true. */
-    else
-        printf("No data within five seconds.\n");
+    if (recVal <= 0)
+        printf("No data %d:_%d.\n", recVal, retval);
+//        perror("select()");
+//    else if (recVal)
+//        printf("Data is available now %d_%d.\n", recVal, retval);
+//        /* FD_ISSET(0, &rfds) will be true. */
+//    else
+//        printf("No data within five seconds %d:.\n", recVal);
 
+//    shutdown(SlaveSocket, SHUT_RDWR);
+//    close(SlaveSocket);
+   
 //   exit(EXIT_SUCCESS);
+    pthread_exit(0);
 
 }
 
@@ -234,15 +253,11 @@ void *process(void *arg){
         read_index(path.c_str(), &rbuff);
         ssize_t snd = send(SlaveSocket, rbuff.c_str(), strlen(rbuff.c_str()), MSG_NOSIGNAL);
     }
-//    else {
-//        strncpy(buff, "\n\ngood by\n", sizeof(buff));
-//        ssize_t snd = send(SlaveSocket, buff, sizeof(buff), MSG_NOSIGNAL);
-//    }
     shutdown(SlaveSocket, SHUT_RDWR);
     close(SlaveSocket);
     
-    return NULL;
-//    pthread_exit(0);
+//    return NULL;
+    pthread_exit(0);
 }
 
 
@@ -348,12 +363,13 @@ int main(int argc, char** argv) {
         } 
 //        setsockopt(SlaveSocket, SOL_SOCKET, SO_SNDTIMEO, (char *) &tv, sizeof(tv));
 //        setsockopt(SlaveSocket, SOL_SOCKET, SO_RCVTIMEO, (char *) &tv, sizeof(tv));
+//            set_nonblock(SlaveSocket);
         
-////            set_nonblock(SlaveSocket);
         set_nonblock(*iptr);
-////            pthread_create(&thread, 0, process, &SlaveSocket);
+//            pthread_create(&thread, 0, process, &SlaveSocket);
         pthread_create(&thread, 0, proc2, iptr);
-////            pthread_join(thread, NULL);
+//        pthread_create(&thread, 0, process, iptr);
+//        pthread_join(thread, NULL);
         pthread_detach(thread);
 //        proc2(iptr);
 //        process(iptr);
