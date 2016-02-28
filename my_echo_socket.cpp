@@ -24,7 +24,8 @@
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
-#include <algorithm>
+//#include <algorithm>
+#include <semaphore.h>
 
 //#include <stdio.h>
 //#include <stdlib.h>
@@ -44,9 +45,11 @@ pthread_mutex_t     mLock = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t      cond  = PTHREAD_COND_INITIALIZER;
 
 int T_CNT = 0;
+sem_t *semid;
 
-std::string* read_index(const char* fname);
-void *process(void *arg);
+
+//std::string* read_index(const char* fname);
+//void *process(void *arg);
 int req_parser(std::string request, std::string* pth, std::string* cgi);
 
 static const char* templ = "HTTP/1.0 200 OK\r\n"
@@ -188,7 +191,8 @@ void *proc2(void *arg){
     int retval = 0;
     int recVal = -1;
     
-   /* Watch stdin (fd 0) to see when it has input. */
+    int r, v;
+    
     FD_ZERO(&rfds);
     FD_SET(SlaveSocket, &rfds);
 
@@ -198,7 +202,6 @@ void *proc2(void *arg){
 
 //    cout << SlaveSocket << endl;
     retval = select(SlaveSocket + 1, &rfds, NULL, NULL, &tv);
-    /* Don't rely on the value of tv now! */
     
     bzero(buff, sizeof(buff));
 //    do {
@@ -237,9 +240,15 @@ void *proc2(void *arg){
 
     shutdown(SlaveSocket, SHUT_RDWR);
     close(SlaveSocket);
-   
+    
+//    pthread_mutex_lock(&lock);
+//    r = sem_post(semid); // increment semafor
+//    r = sem_getvalue(semid, &v);
+//    std::cout << "proc2 SEM_value:" << v << std::endl;
+//    pthread_mutex_unlock(&lock);
+    
 //   exit(EXIT_SUCCESS);
-    pthread_exit(0);
+//    pthread_exit(0);
 
 }
 
@@ -280,12 +289,18 @@ void *proc2(void *arg){
 
 int main_loop(int argc, char** argv) {
     
-    int MasterSocket, SlaveSocket, b, optval;
-//    char buff[256];
-    pthread_t thread;
-    int THREADS = 5;
-    pthread_t th_pool[THREADS];
 //    /home/box/final/final -h <ip> -p <port> -d <directory>
+    
+    int MasterSocket, SlaveSocket, b, optval;
+    pthread_t thread;
+
+//    semid = sem_open("/test.sem", O_CREAT, 0666, 2);
+//    sem_close(semid);
+//    sem_unlink("/test.sem");
+//    semid = sem_open("/test.sem", O_CREAT, 0666, 2);
+
+    int r, v;
+    
     int port = 12345;
     std::string ip = "127.0.0.1";
     int rezopt;
@@ -364,6 +379,10 @@ int main_loop(int argc, char** argv) {
         tv.tv_sec = 1;
         tv.tv_usec = 0;
         
+//        r = sem_getvalue(semid, &v);
+//        std::cout << "Main SEM_value:" << v << std::endl;
+//        sem_wait(semid); // decrement
+        
 //        http://www.iakovlev.org/index.html?p=95
         iptr = (int *) malloc(sizeof(int));
         *iptr = accept(MasterSocket, NULL, NULL);
@@ -379,11 +398,11 @@ int main_loop(int argc, char** argv) {
         
         set_nonblock(*iptr);
 //            pthread_create(&thread, 0, process, &SlaveSocket);
-        pthread_create(&thread, 0, proc2, iptr);
 //        pthread_create(&thread, 0, process, iptr);
+//        pthread_create(&thread, 0, proc2, iptr);
 //        pthread_join(thread, NULL);
-        pthread_detach(thread);
-//        proc2(iptr);
+//        pthread_detach(thread);
+        proc2(iptr);
 //        process(iptr);
     }
 
@@ -391,6 +410,9 @@ int main_loop(int argc, char** argv) {
 
     shutdown(MasterSocket, SHUT_RDWR);
     close(MasterSocket);
+
+//    sem_close(semid);
+//    sem_unlink("/test.sem");
     
     return 0;
 }
@@ -402,7 +424,7 @@ int main (int argc, char **argv){
 
     process_id = fork();
     if (process_id > 0) {
-        printf("process_id of child process %d \n", process_id);
+//        printf("process_id of child process %d \n", process_id);
         // return success in exit status
         exit(0);
     }
