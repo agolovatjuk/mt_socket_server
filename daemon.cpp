@@ -23,7 +23,7 @@ int d_main(int argc, char* argv[])
     if (process_id > 0) {
         printf("process_id of child process %d \n", process_id);
         // return success in exit status
-        // exit(0);
+        exit(0);
     }
     //unmask the file mode
     umask(0);

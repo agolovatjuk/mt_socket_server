@@ -14,18 +14,17 @@
 #include <cstdlib>
 #include <iostream>
 #include <fstream>
-#include <sys/socket.h>
-#include <sys/types.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <string.h>
 #include <pthread.h>
 #include <fcntl.h>
+#include <sys/types.h>
+#include <sys/socket.h>
 #include <sys/ioctl.h>
+#include <sys/stat.h>
 
-
-//#include <sys/stat.h>
 //#include <stdio.h>
 //#include <stdlib.h>
 
@@ -38,7 +37,12 @@
 using namespace std;
 
 std::string WORKDIR;
-pthread_mutex_t lock;
+
+pthread_mutex_t     lock;
+pthread_mutex_t     mLock = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t      cond  = PTHREAD_COND_INITIALIZER;
+
+int T_CNT = 0;
 
 std::string* read_index(const char* fname);
 void *process(void *arg);
@@ -110,7 +114,8 @@ int req_parser(std::string request, std::string* pth, std::string* cgi = NULL) {
 //        index = "index.html";
 //    else if (strcmp(path, "/index.html/") == 0)
 //        index = "index.html";
-    if( ! WORKDIR.empty()){
+
+    if ( ! WORKDIR.empty()){
         pth->assign(WORKDIR);
         pth->append("//");
     }
@@ -123,7 +128,7 @@ int req_parser(std::string request, std::string* pth, std::string* cgi = NULL) {
     return 0;
 }
 
-ssize_t read_index(std::string *data, const char* fname = "index.html"){
+ssize_t  read_index(const char* fname, std::string *data){
 
     std::string buff; // = std::string("");
     std::ifstream f (fname, ios::in);
@@ -157,45 +162,108 @@ ssize_t read_index(std::string *data, const char* fname = "index.html"){
     return data->size();
 }
 
-void *process(void *arg){
+
+void *proc2(void *arg){
     
     int SlaveSocket = * ((int *) arg);
     free(arg);
-    char buff[1024];
-
+    static char buff[1024];
     std::string rbuff;
     std::string path;
+    
+    fd_set rfds;
+    struct timeval tv;
+    int retval = 0;
 
-//    sleep(.1);
+   /* Watch stdin (fd 0) to see when it has input. */
+    FD_ZERO(&rfds);
+    FD_SET(SlaveSocket, &rfds);
 
+   /* Wait up to five seconds. */
+    tv.tv_sec = 2;
+    tv.tv_usec = 0;
+
+//    cout << SlaveSocket << endl;
+    retval = select(SlaveSocket + 1, &rfds, NULL, NULL, &tv);
+    /* Don't rely on the value of tv now! */
+    
     bzero(buff, sizeof(buff));
-    ssize_t rcv = recv(SlaveSocket, buff, sizeof(buff), MSG_NOSIGNAL);
-    pthread_mutex_lock(&lock);
-    cout << "Pthread:" << pthread_self() << endl;
-    cout << "recv:" << recv << ":Request:\n" << buff  <<  endl;
-    pthread_mutex_unlock(&lock);
-    if(-1 != rcv && buff){
-        req_parser(buff, &path);
-        read_index(&rbuff, path.c_str());
-        ssize_t snd = send(SlaveSocket, rbuff.c_str(), rbuff.size(), MSG_NOSIGNAL);
-    }
-//    else {
-//        strncpy(buff, "\n\ngood by\n", sizeof(buff));
-//        ssize_t snd = send(SlaveSocket, buff, sizeof(buff), MSG_NOSIGNAL);
+    int recVal = recv (SlaveSocket, buff, 1024, MSG_NOSIGNAL);
+
+//    if (n == -1) {
+//    //something wrong
+//    } else if (n == 0)
+//    continue;//timeout
+//    if (!FD_ISSET(sd, &input))
+//   ;//again something wrong
+
+//    if((retVal == 0) && errno != EAGAIN){
+//        shutdown(SlaveSocket, SHUT_RDWR);
+//        close(SlaveSocket);
+////        SlaveSockets->erase(i);
 //    }
+    
+    if (recVal > 0) {
+//        strncpy(Buffer + RecvSize, "125", 3);
+//        send(SlaveSocket, Buffer, RecvSize, MSG_NOSIGNAL);
+        req_parser(buff, &path);
+        read_index(path.c_str(), &rbuff);
+        ssize_t snd = send(SlaveSocket, rbuff.c_str(), rbuff.size(), MSG_NOSIGNAL);   
+    }   
+   
+//    if (recVal <= 0)
+//        printf("No data %d:_%d.\n", recVal, retval);
+//        perror("select()");
+//    else if (recVal)
+//        printf("Data is available now %d_%d.\n", recVal, retval);
+//        /* FD_ISSET(0, &rfds) will be true. */
+//    else
+//        printf("No data within five seconds %d:.\n", recVal);
+
     shutdown(SlaveSocket, SHUT_RDWR);
     close(SlaveSocket);
-    
-//    return NULL;
+   
+//   exit(EXIT_SUCCESS);
     pthread_exit(0);
+
 }
+
+
+//void *process(void *arg){
+//    
+//    int SlaveSocket = * ((int *) arg);
+//    free(arg);
+//    char buff[1024];
+//
+//    std::string rbuff;
+//    std::string path;
+//
+////    sleep(.1);
+//
+//    bzero(buff, sizeof(buff));
+//    ssize_t rcv = recv(SlaveSocket, buff, sizeof(buff), MSG_NOSIGNAL);
+//    pthread_mutex_lock(&lock);
+//    cout << "Pthread:" << pthread_self() << endl;
+//    cout << "recv:" << recv << ":Request:\n" << buff  <<  endl;
+//    pthread_mutex_unlock(&lock);
+//    if(-1 != rcv && buff){
+//        req_parser(buff, &path);
+//        read_index(path.c_str(), &rbuff);
+//        ssize_t snd = send(SlaveSocket, rbuff.c_str(), strlen(rbuff.c_str()), MSG_NOSIGNAL);
+//    }
+//    shutdown(SlaveSocket, SHUT_RDWR);
+//    close(SlaveSocket);
+//    
+////    return NULL;
+//    pthread_exit(0);
+//}
 
 
 /*
  * 
  */
 
-int main(int argc, char** argv) {
+int main_loop(int argc, char** argv) {
     
     int MasterSocket, SlaveSocket, b, optval;
 //    char buff[256];
@@ -245,6 +313,7 @@ int main(int argc, char** argv) {
     
     MasterSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP); // IPP
 //    set_nonblock(MasterSocket);
+    
     if (MasterSocket < 0){
         perror("socket");
         exit(EXIT_FAILURE);
@@ -272,6 +341,7 @@ int main(int argc, char** argv) {
         exit(EXIT_FAILURE);
     }
 
+    
     int *iptr;
 
     while(1){
@@ -288,17 +358,18 @@ int main(int argc, char** argv) {
             perror("accept error");
             exit(EXIT_FAILURE);
         } 
-        else {    
 //        setsockopt(SlaveSocket, SOL_SOCKET, SO_SNDTIMEO, (char *) &tv, sizeof(tv));
 //        setsockopt(SlaveSocket, SOL_SOCKET, SO_RCVTIMEO, (char *) &tv, sizeof(tv));
 //            set_nonblock(SlaveSocket);
-            set_nonblock(*iptr);
+        
+        set_nonblock(*iptr);
 //            pthread_create(&thread, 0, process, &SlaveSocket);
-            pthread_create(&thread, 0, process, iptr);
-//            pthread_join(thread, NULL);
-            pthread_detach(thread);
-        }
-    
+        pthread_create(&thread, 0, proc2, iptr);
+//        pthread_create(&thread, 0, process, iptr);
+//        pthread_join(thread, NULL);
+        pthread_detach(thread);
+//        proc2(iptr);
+//        process(iptr);
     }
 
     pthread_mutex_destroy(&lock);
@@ -307,4 +378,36 @@ int main(int argc, char** argv) {
     close(MasterSocket);
     
     return 0;
+}
+
+int main (int argc, char **argv){
+    
+    pid_t process_id = 0;
+    pid_t sid = 0;
+
+    process_id = fork();
+    if (process_id > 0) {
+        printf("process_id of child process %d \n", process_id);
+        // return success in exit status
+        exit(0);
+    }
+
+    umask(0);
+
+    //set new session
+    sid = setsid();
+    
+    if(sid < 0) {
+        // Return failure
+        // exit(1);
+    }
+    // Change the current working directory to root.
+//    chdir("/");
+    // Close stdin. stdout and stderr
+    
+    close(STDIN_FILENO);
+    close(STDOUT_FILENO);
+    close(STDERR_FILENO);
+    
+    return main_loop(argc, argv);
 }
