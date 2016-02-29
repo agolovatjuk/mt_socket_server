@@ -247,11 +247,11 @@ void *proc2(void *arg){
     shutdown(SlaveSocket, SHUT_RDWR);
     close(SlaveSocket);
     
-//    pthread_mutex_lock(&lock);
-//    r = sem_post(semid); // increment semafor
-//    r = sem_getvalue(semid, &v);
+    pthread_mutex_lock(&lock);
+    r = sem_post(semid); // increment semafor
+    r = sem_getvalue(semid, &v);
 //    std::cout << "proc2 SEM_value:" << v << std::endl;
-//    pthread_mutex_unlock(&lock);
+    pthread_mutex_unlock(&lock);
     
 //   exit(EXIT_SUCCESS);
 //    pthread_exit(0);
@@ -299,11 +299,13 @@ int main_loop(int argc, char** argv) {
     
     int MasterSocket, SlaveSocket, b, optval;
     pthread_t thread;
+    const char *sname = "/test.sem";
+    const int semcnt = 32;
 
-//    semid = sem_open("/test.sem", O_CREAT, 0666, 2);
-//    sem_close(semid);
-//    sem_unlink("/test.sem");
-//    semid = sem_open("/test.sem", O_CREAT, 0666, 2);
+    semid = sem_open(sname, O_CREAT, 0666, semcnt);
+    sem_close(semid);
+    sem_unlink(sname);
+    semid = sem_open(sname, O_CREAT, 0666, semcnt);
 
     int r, v;
     
@@ -378,19 +380,23 @@ int main_loop(int argc, char** argv) {
     }
 
     
-    int *iptr;
 
     while(1){
         struct timeval tv;
         tv.tv_sec = 1;
         tv.tv_usec = 0;
         
-//        r = sem_getvalue(semid, &v);
+        sem_wait(semid); // decrement
+        r = sem_getvalue(semid, &v);
 //        std::cout << "Main SEM_value:" << v << std::endl;
-//        sem_wait(semid); // decrement
+        if(v==0) {
+//            std::cout << "sleep 1" << v << std::endl;
+            sleep(.00001);
+        }
         
 //        http://www.iakovlev.org/index.html?p=95
-        iptr = (int *) malloc(sizeof(int));
+//    int *iptr;
+        int *iptr = (int *) malloc(sizeof(int));
         *iptr = accept(MasterSocket, NULL, NULL);
 //        SlaveSocket = accept(MasterSocket, NULL, NULL);
 //        if(SlaveSocket <= 0){
@@ -405,10 +411,10 @@ int main_loop(int argc, char** argv) {
         set_nonblock(*iptr);
 //            pthread_create(&thread, 0, process, &SlaveSocket);
 //        pthread_create(&thread, 0, process, iptr);
-//        pthread_create(&thread, 0, proc2, iptr);
+        pthread_create(&thread, 0, proc2, iptr);
 //        pthread_join(thread, NULL);
-//        pthread_detach(thread);
-        proc2(iptr);
+        pthread_detach(thread);
+//        proc2(iptr);
 //        process(iptr);
     }
 
@@ -417,8 +423,8 @@ int main_loop(int argc, char** argv) {
     shutdown(MasterSocket, SHUT_RDWR);
     close(MasterSocket);
 
-//    sem_close(semid);
-//    sem_unlink("/test.sem");
+    sem_close(semid);
+    sem_unlink(sname);
     
     return 0;
 }
