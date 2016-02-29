@@ -293,6 +293,10 @@ int main_loop(int argc, char** argv) {
     return 0;
 }
 
+/*
+ * TODO: realize SIGHUP ignore
+ */
+
 int main (int argc, char **argv){
     
     pid_t process_id = 0;
