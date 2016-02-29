@@ -24,16 +24,7 @@
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
-//#include <algorithm>
 #include <semaphore.h>
-
-//#include <stdio.h>
-//#include <stdlib.h>
-
-//#include <stdio.h>
-//#include <stdlib.h>
-//#include <sys/socket.h>
-//#include <netinet/in.h>
 
 
 using namespace std;
@@ -44,13 +35,8 @@ pthread_mutex_t     lock;
 pthread_mutex_t     mLock = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t      cond  = PTHREAD_COND_INITIALIZER;
 
-int T_CNT = 0;
-sem_t *semid;
+sem_t semaphore;
 
-
-//std::string* read_index(const char* fname);
-//void *process(void *arg);
-int req_parser(std::string request, std::string* pth, std::string* cgi);
 
 static const char* templ = "HTTP/1.0 200 OK\r\n"
 		           "Content-length: %d\r\n"
@@ -71,7 +57,7 @@ int set_nonblock(int fd){
     return fcntl(fd, F_SETFL, flags|O_NONBLOCK);
 #else
     flags = 1;
-    return ioctl(fd, FIOBIO, &flags);
+    return ioctl(fd, FIONBIO, &flags);
 #endif
 }
 
@@ -92,17 +78,6 @@ int req_parser(std::string request, std::string* pth, std::string* cgi = NULL) {
         if(pos!=-1)
             path2 = path2.substr(0,path2.find('?',0));
     }    
-//    t = strtok(&request[0], " ");
-//    while(t) {
-//        if (strcmp(t, "GET") == 0){
-//            t = strtok(NULL, " ");
-//            path = t;
-//            t = strtok(t, "?");
-//            cgi_query = strtok(NULL, "?");
-//            path = strtok(path, "/");
-//            break;
-//        }
-//    }
 
 //    istringstream iss(d4);
 //    do {
@@ -118,20 +93,12 @@ int req_parser(std::string request, std::string* pth, std::string* cgi = NULL) {
         index = "index.html";
     else
         index.assign(path2);
-//    else if (strcmp(path, "/") == 0) 
-//        index = "index.html";
-//    else if (strcmp(path, "/index.html") == 0)
-//        index = "index.html";
-//    else if (strcmp(path, "/index.html/") == 0)
-//        index = "index.html";
 
     if ( ! WORKDIR.empty()){
         pth->assign(WORKDIR);
         pth->append("//");
     }
     pth->append(index);
-//    cout << pth->c_str() << endl;
-//    pth->assign(index);
 
     return 0;
 }
@@ -163,21 +130,6 @@ ssize_t  read_index(const char* fname, std::string *data){
         b="HTTP/1.0 404 NOT FOUND\r\nContent-length: 3\r\nContent-Type: text/html\r\n\r\nNOT";
     }
 
-//    if(page == templ)
-//        sz = asprintf(&a, page, data->size(), data->c_str());
-//    else
-//        sz = asprintf(&a, page);
-//
-//    if (sz == -1) {
-//        data->append("error memory alloc");
-//    }
-//    else {
-//        data->assign(a);
-//        delete (a);
-//    }
-//
-//    return data->size();
-    
         data->assign(b);
         
     return b.size();
@@ -197,61 +149,28 @@ void *proc2(void *arg){
     int retval = 0;
     int recVal = -1;
     
-    int r, v;
-    
     FD_ZERO(&rfds);
     FD_SET(SlaveSocket, &rfds);
 
-   /* Wait up to five seconds. */
+   /* Wait up to two seconds. */
     tv.tv_sec = 2;
     tv.tv_usec = 0;
 
-//    cout << SlaveSocket << endl;
     retval = select(SlaveSocket + 1, &rfds, NULL, NULL, &tv);
     
     bzero(buff, sizeof(buff));
-//    do {
     recVal = recv (SlaveSocket, buff, 1024, MSG_NOSIGNAL);
-//    } while (recVal <= 0);
-    
-//    if (n == -1) {
-//    //something wrong
-//    } else if (n == 0)
-//    continue;//timeout
-//    if (!FD_ISSET(sd, &input))
-//   ;//again something wrong
-
-//    if((retVal == 0) && errno != EAGAIN){
-//        shutdown(SlaveSocket, SHUT_RDWR);
-//        close(SlaveSocket);
-////        SlaveSockets->erase(i);
-//    }
     
     if (recVal > 0) {
-//        strncpy(Buffer + RecvSize, "125", 3);
-//        send(SlaveSocket, Buffer, RecvSize, MSG_NOSIGNAL);
         req_parser(buff, &path);
         read_index(path.c_str(), &rbuff);
         ssize_t snd = send(SlaveSocket, rbuff.c_str(), rbuff.size(), MSG_NOSIGNAL);   
     }   
    
-//    if (recVal <= 0)
-//        printf("No data %d:_%d.\n", recVal, retval);
-//        perror("select()");
-//    else if (recVal)
-//        printf("Data is available now %d_%d.\n", recVal, retval);
-//        /* FD_ISSET(0, &rfds) will be true. */
-//    else
-//        printf("No data within five seconds %d:.\n", recVal);
-
     shutdown(SlaveSocket, SHUT_RDWR);
     close(SlaveSocket);
     
-    pthread_mutex_lock(&lock);
-    r = sem_post(semid); // increment semafor
-    r = sem_getvalue(semid, &v);
-//    std::cout << "proc2 SEM_value:" << v << std::endl;
-    pthread_mutex_unlock(&lock);
+    sem_post(&semaphore);
     
 //   exit(EXIT_SUCCESS);
 //    pthread_exit(0);
@@ -259,37 +178,7 @@ void *proc2(void *arg){
 }
 
 
-//void *process(void *arg){
-//    
-//    int SlaveSocket = * ((int *) arg);
-//    free(arg);
-//    char buff[1024];
-//
-//    std::string rbuff;
-//    std::string path;
-//
-////    sleep(.1);
-//
-//    bzero(buff, sizeof(buff));
-//    ssize_t rcv = recv(SlaveSocket, buff, sizeof(buff), MSG_NOSIGNAL);
-//    pthread_mutex_lock(&lock);
-//    cout << "Pthread:" << pthread_self() << endl;
-//    cout << "recv:" << recv << ":Request:\n" << buff  <<  endl;
-//    pthread_mutex_unlock(&lock);
-//    if(-1 != rcv && buff){
-//        req_parser(buff, &path);
-//        read_index(path.c_str(), &rbuff);
-//        ssize_t snd = send(SlaveSocket, rbuff.c_str(), strlen(rbuff.c_str()), MSG_NOSIGNAL);
-//    }
-//    shutdown(SlaveSocket, SHUT_RDWR);
-//    close(SlaveSocket);
-//    
-////    return NULL;
-//    pthread_exit(0);
-//}
-
-
-/*
+/* 
  * 
  */
 
@@ -297,15 +186,12 @@ int main_loop(int argc, char** argv) {
     
 //    /home/box/final/final -h <ip> -p <port> -d <directory>
     
-    int MasterSocket, SlaveSocket, b, optval;
+    int MasterSocket, b, optval;
     pthread_t thread;
-    const char *sname = "/test.sem";
-    const int semcnt = 32;
-
-    semid = sem_open(sname, O_CREAT, 0666, semcnt);
-    sem_close(semid);
-    sem_unlink(sname);
-    semid = sem_open(sname, O_CREAT, 0666, semcnt);
+    
+    const int semcnt = 64;
+    
+    sem_init(&semaphore, 0, semcnt);
 
     int r, v;
     
@@ -350,7 +236,6 @@ int main_loop(int argc, char** argv) {
     
     
     MasterSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP); // IPP
-//    set_nonblock(MasterSocket);
     
     if (MasterSocket < 0){
         perror("socket");
@@ -379,43 +264,25 @@ int main_loop(int argc, char** argv) {
         exit(EXIT_FAILURE);
     }
 
-    
-
     while(1){
         struct timeval tv;
         tv.tv_sec = 1;
         tv.tv_usec = 0;
         
-        sem_wait(semid); // decrement
-        r = sem_getvalue(semid, &v);
-//        std::cout << "Main SEM_value:" << v << std::endl;
-        if(v==0) {
-//            std::cout << "sleep 1" << v << std::endl;
-            sleep(.00001);
-        }
+        sem_wait(&semaphore);
+//        sem_getvalue(&semaphore, &v);
         
 //        http://www.iakovlev.org/index.html?p=95
-//    int *iptr;
         int *iptr = (int *) malloc(sizeof(int));
         *iptr = accept(MasterSocket, NULL, NULL);
-//        SlaveSocket = accept(MasterSocket, NULL, NULL);
-//        if(SlaveSocket <= 0){
         if(&iptr <= 0){
             perror("accept error");
             exit(EXIT_FAILURE);
         } 
-//        setsockopt(SlaveSocket, SOL_SOCKET, SO_SNDTIMEO, (char *) &tv, sizeof(tv));
-//        setsockopt(SlaveSocket, SOL_SOCKET, SO_RCVTIMEO, (char *) &tv, sizeof(tv));
-//            set_nonblock(SlaveSocket);
-        
         set_nonblock(*iptr);
-//            pthread_create(&thread, 0, process, &SlaveSocket);
-//        pthread_create(&thread, 0, process, iptr);
         pthread_create(&thread, 0, proc2, iptr);
-//        pthread_join(thread, NULL);
         pthread_detach(thread);
 //        proc2(iptr);
-//        process(iptr);
     }
 
     pthread_mutex_destroy(&lock);
@@ -423,9 +290,6 @@ int main_loop(int argc, char** argv) {
     shutdown(MasterSocket, SHUT_RDWR);
     close(MasterSocket);
 
-    sem_close(semid);
-    sem_unlink(sname);
-    
     return 0;
 }
 
