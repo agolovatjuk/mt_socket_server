@@ -136,7 +136,7 @@ ssize_t  read_index(const char* fname, std::string *data){
 }
 
 
-void *proc2(void *arg){
+void *proc_select(void *arg){
     
     int SlaveSocket = * ((int *) arg);
     free(arg);
@@ -197,8 +197,10 @@ void *proc2(void *arg){
     shutdown(SlaveSocket, SHUT_RDWR);
     close(SlaveSocket);
 
-//    The function sem_post() is thread safe.
+//    The function sem_post() is thread safe?
+    pthread_mutex_lock(&lock);
     sem_post(&semaphore);
+    pthread_mutex_unlock(&lock);
     
 //   exit(EXIT_SUCCESS);
 //    pthread_exit(0);
@@ -238,8 +240,10 @@ void *proc_socket(void *arg){
     shutdown(SlaveSocket, SHUT_RDWR);
     close(SlaveSocket);
     
-//    The function sem_post() is thread safe.
+//    The function sem_post() is thread safe?
+    pthread_mutex_lock(&lock);
     sem_post(&semaphore);
+    pthread_mutex_unlock(&lock);
 
 //    pthread_exit(0);
 }
@@ -256,7 +260,7 @@ int main_loop(int argc, char** argv) {
     int MasterSocket, b, optval;
     pthread_t thread;
     
-    const int semcnt = 64;
+    const int semcnt = 8;
     
     sem_init(&semaphore, 0, semcnt);
 
@@ -333,11 +337,12 @@ int main_loop(int argc, char** argv) {
 
     while(1){
         struct timeval tv;
-        tv.tv_sec = 1;
-        tv.tv_usec = 0;
+        tv.tv_sec = 0;
+        tv.tv_usec = 0.5;
         
         sem_wait(&semaphore);
-//        sem_getvalue(&semaphore, &v);
+        sem_getvalue(&semaphore, &v);
+        cout << "Sem:" << v << endl;
         
 //        http://www.iakovlev.org/index.html?p=95
         int *iptr = (int *) malloc(sizeof(int));
@@ -347,12 +352,12 @@ int main_loop(int argc, char** argv) {
             exit(EXIT_FAILURE);
         } 
 
-//        setsockopt(SlaveSocket, SOL_SOCKET, SO_SNDTIMEO, (char *) &tv, sizeof(tv));
-//        setsockopt(SlaveSocket, SOL_SOCKET, SO_RCVTIMEO, (char *) &tv, sizeof(tv));
+//        setsockopt(*iptr, SOL_SOCKET, SO_SNDTIMEO, (char *) &tv, sizeof(tv));
+//        setsockopt(*iptr, SOL_SOCKET, SO_RCVTIMEO, (char *) &tv, sizeof(tv));
         
         set_nonblock(*iptr);
 //        pthread_create(&thread, 0, proc_socket, iptr);
-        pthread_create(&thread, 0, proc2, iptr);
+        pthread_create(&thread, 0, proc_select, iptr);
         pthread_detach(thread);
 //        proc2(iptr);
     }
