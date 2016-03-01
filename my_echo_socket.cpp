@@ -127,7 +127,7 @@ ssize_t  read_index(const char* fname, std::string *data){
     }
     else {
 //        page = (char *) not_found;
-        b="HTTP/1.0 404 NOT FOUND\r\nContent-length: 3\r\nContent-Type: text/html\r\n\r\nNOT";
+        b="HTTP/1.0 404 NOT FOUND\r\nContent-length: 9\r\nContent-Type: text/html\r\n\r\nNOT FOUND";
     }
 
         data->assign(b);
