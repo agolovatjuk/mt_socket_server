@@ -147,8 +147,8 @@ void *proc2(void *arg){
     
     fd_set rfds;
     struct timeval tv;
-    int retval = 0;
-    int recVal = -1;
+    int sck_cnt = 0;
+    int recVal  = 0;
     
     FD_ZERO(&rfds);
     FD_SET(SlaveSocket, &rfds);
@@ -157,12 +157,12 @@ void *proc2(void *arg){
     tv.tv_sec = 2;
     tv.tv_usec = 0;
 
-    retval = select(SlaveSocket + 1, &rfds, NULL, NULL, &tv);
+    sck_cnt = select(SlaveSocket + 1, &rfds, NULL, NULL, &tv);
     
-    bzero(buff, sizeof(buff));
     tbuff.clear();
     do {
-        recVal = recv (SlaveSocket, buff, 1024, MSG_NOSIGNAL);
+        bzero(buff, sizeof(buff));
+        recVal = recv (SlaveSocket, buff, sizeof(buff), MSG_NOSIGNAL);
         tbuff += buff;
     } while (recVal > 0);
    
@@ -196,7 +196,8 @@ void *proc2(void *arg){
    
     shutdown(SlaveSocket, SHUT_RDWR);
     close(SlaveSocket);
-    
+
+//    The function sem_post() is thread safe.
     sem_post(&semaphore);
     
 //   exit(EXIT_SUCCESS);
@@ -204,34 +205,44 @@ void *proc2(void *arg){
 
 }
 
-//void *process(void *arg){
-//    
-//    int SlaveSocket = * ((int *) arg);
-//    free(arg);
-//    char buff[1024];
-//
-//    std::string rbuff;
-//    std::string path;
-//
-////    sleep(.1);
-//
-//    bzero(buff, sizeof(buff));
-//    ssize_t rcv = recv(SlaveSocket, buff, sizeof(buff), MSG_NOSIGNAL);
+void *proc_socket(void *arg){
+    
+    int SlaveSocket = * ((int *) arg);
+    free(arg);
+
+    char buff[1024];
+    ssize_t rcv;
+    std::string nbuff;
+
+    nbuff.clear();
+
+    do {
+        bzero(buff, sizeof(buff));
+        rcv = recv(SlaveSocket, buff, sizeof(buff), MSG_NOSIGNAL);
+        nbuff += buff;
+    } while (rcv > 0);
 //    pthread_mutex_lock(&lock);
 //    cout << "Pthread:" << pthread_self() << endl;
 //    cout << "recv:" << recv << ":Request:\n" << buff  <<  endl;
 //    pthread_mutex_unlock(&lock);
-//    if(-1 != rcv && buff){
-//        req_parser(buff, &path);
-//        read_index(path.c_str(), &rbuff);
-//        ssize_t snd = send(SlaveSocket, rbuff.c_str(), strlen(rbuff.c_str()), MSG_NOSIGNAL);
-//    }
-//    shutdown(SlaveSocket, SHUT_RDWR);
-//    close(SlaveSocket);
-//    
-////    return NULL;
+    if( ! nbuff.empty() ){
+        
+        std::string rbuff;
+        std::string path;
+
+        req_parser(nbuff.c_str(), &path);
+        read_index(path.c_str(), &rbuff);
+        ssize_t snd = send(SlaveSocket, rbuff.c_str(), strlen(rbuff.c_str()), MSG_NOSIGNAL);
+    }
+
+    shutdown(SlaveSocket, SHUT_RDWR);
+    close(SlaveSocket);
+    
+//    The function sem_post() is thread safe.
+    sem_post(&semaphore);
+
 //    pthread_exit(0);
-//}
+}
 
 
 /* 
@@ -340,6 +351,7 @@ int main_loop(int argc, char** argv) {
 //        setsockopt(SlaveSocket, SOL_SOCKET, SO_RCVTIMEO, (char *) &tv, sizeof(tv));
         
         set_nonblock(*iptr);
+//        pthread_create(&thread, 0, proc_socket, iptr);
         pthread_create(&thread, 0, proc2, iptr);
         pthread_detach(thread);
 //        proc2(iptr);
