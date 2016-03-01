@@ -140,10 +140,10 @@ void *proc2(void *arg){
     
     int SlaveSocket = * ((int *) arg);
     free(arg);
-    static char buff[1024];
+    /*static*/ char buff[1024];
     std::string rbuff;
     std::string path;
-    std::string nbuff;
+    std::string tbuff;
     
     fd_set rfds;
     struct timeval tv;
@@ -160,7 +160,11 @@ void *proc2(void *arg){
     retval = select(SlaveSocket + 1, &rfds, NULL, NULL, &tv);
     
     bzero(buff, sizeof(buff));
-    recVal = recv (SlaveSocket, buff, 1024, MSG_NOSIGNAL);
+    tbuff.clear();
+    do {
+        recVal = recv (SlaveSocket, buff, 1024, MSG_NOSIGNAL);
+        tbuff += buff;
+    } while (recVal > 0);
    
 //    if (n == -1) {
 //    //something wrong
@@ -184,8 +188,8 @@ void *proc2(void *arg){
 //        printf("No data within five seconds %d:.\n", recVal);
 
 
-    if (recVal > 0) {
-        req_parser(buff, &path);
+    if ( ! tbuff.empty()) {
+        req_parser(tbuff.c_str(), &path);
         read_index(path.c_str(), &rbuff);
         ssize_t snd = send(SlaveSocket, rbuff.c_str(), rbuff.size(), MSG_NOSIGNAL);   
     }   
