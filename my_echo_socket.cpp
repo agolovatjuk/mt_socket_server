@@ -143,6 +143,7 @@ void *proc2(void *arg){
     static char buff[1024];
     std::string rbuff;
     std::string path;
+    std::string nbuff;
     
     fd_set rfds;
     struct timeval tv;
@@ -160,7 +161,29 @@ void *proc2(void *arg){
     
     bzero(buff, sizeof(buff));
     recVal = recv (SlaveSocket, buff, 1024, MSG_NOSIGNAL);
-    
+   
+//    if (n == -1) {
+//    //something wrong
+//    } else if (n == 0)
+//    continue;//timeout
+//    if (!FD_ISSET(sd, &input))
+//   ;//again something wrong
+
+//    if((retVal == 0) && errno != EAGAIN){
+//        shutdown(SlaveSocket, SHUT_RDWR);
+//        close(SlaveSocket);
+////        SlaveSockets->erase(i);
+//    }
+//    if (recVal <= 0)
+//        printf("No data %d:_%d.\n", recVal, retval);
+//        perror("select()");
+//    else if (recVal)
+//        printf("Data is available now %d_%d.\n", recVal, retval);
+//        /* FD_ISSET(0, &rfds) will be true. */
+//    else
+//        printf("No data within five seconds %d:.\n", recVal);
+
+
     if (recVal > 0) {
         req_parser(buff, &path);
         read_index(path.c_str(), &rbuff);
@@ -176,6 +199,35 @@ void *proc2(void *arg){
 //    pthread_exit(0);
 
 }
+
+//void *process(void *arg){
+//    
+//    int SlaveSocket = * ((int *) arg);
+//    free(arg);
+//    char buff[1024];
+//
+//    std::string rbuff;
+//    std::string path;
+//
+////    sleep(.1);
+//
+//    bzero(buff, sizeof(buff));
+//    ssize_t rcv = recv(SlaveSocket, buff, sizeof(buff), MSG_NOSIGNAL);
+//    pthread_mutex_lock(&lock);
+//    cout << "Pthread:" << pthread_self() << endl;
+//    cout << "recv:" << recv << ":Request:\n" << buff  <<  endl;
+//    pthread_mutex_unlock(&lock);
+//    if(-1 != rcv && buff){
+//        req_parser(buff, &path);
+//        read_index(path.c_str(), &rbuff);
+//        ssize_t snd = send(SlaveSocket, rbuff.c_str(), strlen(rbuff.c_str()), MSG_NOSIGNAL);
+//    }
+//    shutdown(SlaveSocket, SHUT_RDWR);
+//    close(SlaveSocket);
+//    
+////    return NULL;
+//    pthread_exit(0);
+//}
 
 
 /* 
@@ -279,6 +331,10 @@ int main_loop(int argc, char** argv) {
             perror("accept error");
             exit(EXIT_FAILURE);
         } 
+
+//        setsockopt(SlaveSocket, SOL_SOCKET, SO_SNDTIMEO, (char *) &tv, sizeof(tv));
+//        setsockopt(SlaveSocket, SOL_SOCKET, SO_RCVTIMEO, (char *) &tv, sizeof(tv));
+        
         set_nonblock(*iptr);
         pthread_create(&thread, 0, proc2, iptr);
         pthread_detach(thread);
