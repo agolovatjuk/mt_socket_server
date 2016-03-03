@@ -113,6 +113,7 @@ ssize_t  read_index(const char* fname, std::string *data){
     if(f.is_open()){
         while(getline(f, buff)) {
             data->append(buff);
+            data->append("\n");
         }
         f.close();
         page = (char *) templ;
