@@ -25,6 +25,7 @@
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <semaphore.h>
+#include <sstream>
 
 
 using namespace std;
@@ -44,7 +45,8 @@ static const char* templ = "HTTP/1.0 200 OK\r\n"
 		       	   "\r\n"
 		       	   "%s";
 
-static const char* not_found = "HTTP/1.0 404 NOT FOUND\r\nContent-Type: text/html\r\n\r\n";
+//static const char* not_found = "HTTP/1.0 404 NOT FOUND\r\nContent-Type: text/html\r\n\r\n";
+static const char* not_found = "HTTP/1.0 404 NOT FOUND\r\nContent-length: 9\r\nContent-Type: text/html\r\n\r\nNOT FOUND";
 
 
 int set_nonblock(int fd){
@@ -106,16 +108,19 @@ int req_parser(std::string request, std::string* pth, std::string* cgi = NULL) {
 ssize_t  read_index(const char* fname, std::string *data){
 
     std::string buff, b; // = std::string("");
+    std::stringstream buffer;
+
     std::ifstream f (fname, ios::in);
     char *a, *page;
     int sz;
 
     if(f.is_open()){
-        while(getline(f, buff)) {
-            data->append(buff+"\n");
-//            data->append("\n");
-        }
+        
+        buffer << f.rdbuf();
+        data->assign(buffer.str());
+
         f.close();
+        
         page = (char *) templ;
         b = "HTTP/1.0 200 OK\r\n"
              "Content-length: ";
@@ -127,8 +132,7 @@ ssize_t  read_index(const char* fname, std::string *data){
         b+=data->c_str();
     }
     else {
-//        page = (char *) not_found;
-        b="HTTP/1.0 404 NOT FOUND\r\nContent-length: 9\r\nContent-Type: text/html\r\n\r\nNOT FOUND";
+        b = (char *) not_found;
     }
 
         data->assign(b);
