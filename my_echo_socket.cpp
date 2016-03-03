@@ -112,12 +112,10 @@ int req_parser(std::string request, std::string* pth, std::string* cgi = NULL) {
 
 ssize_t  read_index(const char* fname, std::string *data){
 
-    std::string buff, b; // = std::string("");
+    std::string b; // = std::string("");
     std::stringstream buffer;
 
     std::ifstream f (fname, ios::in);
-    char *a, *page;
-    int sz;
 
     if(f.is_open()){
         
@@ -126,7 +124,6 @@ ssize_t  read_index(const char* fname, std::string *data){
 
         f.close();
         
-        page = (char *) templ;
         b = "HTTP/1.0 200 OK\r\n"
              "Content-length: ";
         b+=std::to_string(data->size());
@@ -386,7 +383,11 @@ int main_loop(int argc, char** argv) {
 }
 
 /*
- * TODO: realize SIGHUP ignore
+ * TODO: realize 
+ * ThreadPool with epoll/dequeue
+ * libev
+ * libuv
+ * boost::asio
  */
 
 int main (int argc, char **argv){
