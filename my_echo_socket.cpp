@@ -26,6 +26,7 @@
 #include <sys/stat.h>
 #include <semaphore.h>
 #include <sstream>
+#include <signal.h>
 
 
 using namespace std;
@@ -63,6 +64,10 @@ int set_nonblock(int fd){
 #endif
 }
 
+void handle_signal(int signum){
+    // do nothing, ignore SIGHUP, SIGTERM
+    ;
+}
 
 int req_parser(std::string request, std::string* pth, std::string* cgi = NULL) {
     
@@ -158,8 +163,8 @@ void *proc_select(void *arg){
     FD_ZERO(&rfds);
     FD_SET(SlaveSocket, &rfds);
 
-   /* Wait up to two seconds. */
-    tv.tv_sec = 2;
+   /* Wait up to five seconds. */
+    tv.tv_sec = 5;
     tv.tv_usec = 0;
 
     sck_cnt = select(SlaveSocket + 1, &rfds, NULL, NULL, &tv);
@@ -203,9 +208,9 @@ void *proc_select(void *arg){
     close(SlaveSocket);
 
 //    The function sem_post() is thread safe?
-    pthread_mutex_lock(&lock);
+//    pthread_mutex_lock(&lock);
     sem_post(&semaphore);
-    pthread_mutex_unlock(&lock);
+//    pthread_mutex_unlock(&lock);
     
 //   exit(EXIT_SUCCESS);
 //    pthread_exit(0);
@@ -246,9 +251,9 @@ void *proc_socket(void *arg){
     close(SlaveSocket);
     
 //    The function sem_post() is thread safe?
-    pthread_mutex_lock(&lock);
+//    pthread_mutex_lock(&lock);
     sem_post(&semaphore);
-    pthread_mutex_unlock(&lock);
+//    pthread_mutex_unlock(&lock);
 
 //    pthread_exit(0);
 }
@@ -265,9 +270,7 @@ int main_loop(int argc, char** argv) {
     int MasterSocket, b, optval;
     pthread_t thread;
     
-    const int semcnt = 8;
-    
-    sem_init(&semaphore, 0, semcnt);
+    int semcnt = 512;
 
     int r, v;
     
@@ -278,7 +281,7 @@ int main_loop(int argc, char** argv) {
     extern char *optarg;
     extern int optind, opterr, optopt;
     
-    while ( (rezopt = getopt(argc, argv, "h:p:d:") ) != -1) {
+    while ( (rezopt = getopt(argc, argv, "h:p:d:t:") ) != -1) {
         switch(rezopt) {
             case 'h':
                 ip = optarg;
@@ -289,12 +292,17 @@ int main_loop(int argc, char** argv) {
             case 'd':
                 WORKDIR = optarg;
                 break;
+            case 't':
+                semcnt = atoi(optarg);
+                break;
 //            case '?': printf("Error found !\n");break;
             default:
                 exit(EXIT_FAILURE);
         }
     }
     
+    sem_init(&semaphore, 0, semcnt);
+
     struct sockaddr_in sa;
     sa.sin_family = AF_INET;
     sa.sin_port = htons(port);//(12345);
@@ -344,11 +352,7 @@ int main_loop(int argc, char** argv) {
         struct timeval tv;
         tv.tv_sec = 0;
         tv.tv_usec = 0.5;
-        
-        sem_wait(&semaphore);
-        sem_getvalue(&semaphore, &v);
-        cout << "Sem:" << v << endl;
-        
+                
 //        http://www.iakovlev.org/index.html?p=95
         int *iptr = (int *) malloc(sizeof(int));
         *iptr = accept(MasterSocket, NULL, NULL);
@@ -357,6 +361,10 @@ int main_loop(int argc, char** argv) {
             exit(EXIT_FAILURE);
         } 
 
+        sem_wait(&semaphore);
+//        sem_getvalue(&semaphore, &v);
+//        cout << "Sem:" << v << endl;
+
 //        setsockopt(*iptr, SOL_SOCKET, SO_SNDTIMEO, (char *) &tv, sizeof(tv));
 //        setsockopt(*iptr, SOL_SOCKET, SO_RCVTIMEO, (char *) &tv, sizeof(tv));
         
@@ -364,6 +372,8 @@ int main_loop(int argc, char** argv) {
 //        pthread_create(&thread, 0, proc_socket, iptr);
         pthread_create(&thread, 0, proc_select, iptr);
         pthread_detach(thread);
+//        pthread_join(thread, NULL); //for further threadpool 
+
 //        proc2(iptr);
     }
 
@@ -400,6 +410,10 @@ int main (int argc, char **argv){
         // Return failure
         // exit(1);
     }
+    
+    signal(SIGHUP, handle_signal);
+//    signal(SIGTERM, handle_signal);
+    
     // Change the current working directory to root.
     chdir("/");
     // Close stdin. stdout and stderr
